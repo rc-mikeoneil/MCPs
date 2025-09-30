@@ -1,0 +1,1 @@
+Crowdstrike Event Dictionary parser.
