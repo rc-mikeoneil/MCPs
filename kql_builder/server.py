@@ -9,6 +9,7 @@ from fastmcp import FastMCP  # FastMCP 2.x
 from pydantic import BaseModel, Field
 
 from schema_scraper import SchemaCache
+from rag import RAGService
 from kql_builder import (
     build_kql_query,
     suggest_columns,
@@ -27,6 +28,7 @@ mcp = FastMCP(name="kql-query-builder")  # keep the same logical name
 DATA_DIR = Path(".cache"); DATA_DIR.mkdir(parents=True, exist_ok=True)
 SCHEMA_PATH = DATA_DIR / "schema.json"
 schema_cache = SchemaCache(schema_path=SCHEMA_PATH)
+rag_service = RAGService(schema_cache=schema_cache, cache_dir=DATA_DIR)
 
 # ----- Pydantic params (FastMCP will validate) -----
 class ListTablesParams(BaseModel):
@@ -50,6 +52,11 @@ class BuildQueryParams(BaseModel):
     order_by: Optional[str] = None
     limit: Optional[int] = 100
     natural_language_intent: Optional[str] = None
+
+
+class RetrieveContextParams(BaseModel):
+    query: str
+    k: int = Field(default=5, ge=1, le=20)
 
 # ----- Tools -----
 
@@ -124,12 +131,35 @@ def examples(params: GetSchemaParams) -> Dict[str, Any]:
         raise
 
 @mcp.tool
+def retrieve_context(params: RetrieveContextParams) -> Dict[str, Any]:
+    """Return the most relevant Defender schema passages for a natural language question."""
+
+    try:
+        logger.info(f"Retrieving context for query: {params.query}")
+        hits = rag_service.search(params.query, k=params.k)
+        logger.info(f"RAG service returned {len(hits)} matches")
+        return {"matches": hits}
+    except Exception as e:
+        logger.error(f"Failed to retrieve context for '{params.query}': {e}")
+        raise
+
+@mcp.tool
 def build_query(params: BuildQueryParams) -> Dict[str, Any]:
     """Build a KQL query from structured params or natural-language intent."""
     try:
         logger.info(f"Building KQL query for table: {params.table}")
         schema = schema_cache.load_or_refresh()
-        kql, meta = build_kql_query(schema=schema, **params.model_dump())
+        payload = params.model_dump()
+        kql, meta = build_kql_query(schema=schema, **payload)
+
+        if payload.get("natural_language_intent"):
+            try:
+                context = rag_service.search(payload["natural_language_intent"], k=5)
+                if context:
+                    meta = {**meta, "rag_context": context}
+            except Exception as exc:
+                logger.warning(f"Failed to retrieve RAG context: {exc}")
+
         result = {"kql": kql, "meta": meta}
         logger.info(f"Successfully built KQL query for table '{meta.get('table', 'unknown')}'")
         return result
