@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  kql-mcp:
+    build: .
+    image: kql-mcp:latest
+    container_name: kql-mcp
+    user: "10001:10001"
+    working_dir: /app
+    environment:
+      - CACHE_DIR=/app/.cache
+    volumes:
+      - type: volume
+        source: kql_mcp_cache
+        target: /app/.cache
+        consistency: delegated
+    # Option B: TCP proxy (uncomment to enable)
+    # command: ["sh", "-lc", "socat TCP-LISTEN:8765,fork EXEC:'uv run kql-mcp' "]
+    # ports:
+    #   - "8765:8765"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "test", "-w", "/app/.cache"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  kql_mcp_cache: {}
