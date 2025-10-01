@@ -1,1 +1,1 @@
-Crowdstrike Event Dictionary parser.
+MCPs
