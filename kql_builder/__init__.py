@@ -1,6 +1,6 @@
 """kql_builder package initialization."""
 
-from .kql_builder import build_kql_query
+from .kql_builder import build_kql_query, suggest_columns, example_queries_for_table
 from .query_logging import (
     QueryLogger,
     ValidationResults,
@@ -22,4 +22,6 @@ __all__ = [
     "test_execution",
     "validate_schema",
     "validate_syntax",
+    "suggest_columns",
+    "example_queries_for_table",
 ]
