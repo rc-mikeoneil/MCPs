@@ -130,6 +130,7 @@ def _validate_time_window(time_window: str) -> str:
 def _validate_limit(limit: Optional[int]) -> int:
     """Validate and normalize limit value."""
     if limit is None:
+        # No limit was specified; use the safe default.
         return 100
 
     if not isinstance(limit, int):
@@ -333,7 +334,7 @@ def _get_default_query_params() -> Dict[str, Any]:
         "time_window": DEFAULT_TIME_WINDOW,
         "summarize": None,
         "order_by": None,
-        "limit": 100
+        "limit": None
     }
 
 def _infer_table_from_text(text: str, schema: Dict[str, Any]) -> Optional[str]:
@@ -509,7 +510,7 @@ def _parse_aggregation_from_text(text: str) -> Dict[str, Any]:
 
     return result
 
-def _parse_limit_from_text(text: str) -> int:
+def _parse_limit_from_text(text: str) -> Optional[int]:
     """Parse limit from text."""
     limit_patterns = [
         r"(?:limit|top|first)\s+(\d+)",
@@ -527,7 +528,7 @@ def _parse_limit_from_text(text: str) -> int:
             except ValueError:
                 continue
 
-    return 100  # Default
+    return None
 
 def _parse_select_from_text(text: str) -> Optional[List[str]]:
     """Parse select columns from text."""
@@ -567,7 +568,7 @@ def build_kql_query(
     time_window: Optional[str] = None,
     summarize: Optional[str] = None,
     order_by: Optional[str] = None,
-    limit: Optional[int] = 100,
+    limit: Optional[int] = None,
     natural_language_intent: Optional[str] = None,
 ) -> Tuple[str, Dict[str, Any]]:
     """Build a KQL query with comprehensive input validation."""
@@ -584,7 +585,8 @@ def build_kql_query(
             time_window = time_window or derived["time_window"]
             summarize = summarize or derived["summarize"]
             order_by = order_by or derived["order_by"]
-            limit = limit or derived["limit"]
+            if limit is None:
+                limit = derived["limit"]
 
         # Validate table
         if not table:

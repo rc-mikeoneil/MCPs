@@ -50,7 +50,7 @@ class BuildQueryParams(BaseModel):
     time_window: Optional[str] = None
     summarize: Optional[str] = None
     order_by: Optional[str] = None
-    limit: Optional[int] = 100
+    limit: Optional[int] = None
     natural_language_intent: Optional[str] = None
 
 
