@@ -12,6 +12,11 @@ pydantic>=2.7.0,<3.0.0
 # Fuzzy string matching for table name suggestions
 rapidfuzz>=3.9.0,<4.0.0
 
+# Embeddings and vector search for Defender schema retrieval
+numpy>=1.26.0,<2.0.0
+sentence-transformers>=2.2.2,<3.0.0
+faiss-cpu>=1.7.4,<2.0.0
+
 # Development and testing dependencies (optional)
 # pytest>=7.0.0,<8.0.0
 # black>=23.0.0,<24.0.0

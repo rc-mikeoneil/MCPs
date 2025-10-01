@@ -8,6 +8,7 @@ A Model Context Protocol (MCP) server that helps build Kusto Query Language (KQL
 - **Intelligent Query Building**: Construct KQL queries from structured parameters or natural language intent
 - **Table Suggestions**: Get column suggestions and example queries for Defender tables
 - **Natural Language Processing**: Parse natural language descriptions into KQL queries
+- **Retrieval-Augmented Context**: Embed schema documentation and retrieve the most relevant passages to guide query building
 - **Docker Support**: Containerized deployment with persistent caching
 
 ## Tools
@@ -18,6 +19,7 @@ A Model Context Protocol (MCP) server that helps build Kusto Query Language (KQL
 - `refresh_schema` - Refresh the local schema cache from Microsoft Learn
 - `examples` - Get example KQL queries for a table
 - `build_query` - Build a KQL query from parameters or natural language intent
+- `retrieve_context` - Retrieve Defender schema context passages related to a natural language question
 
 ## Installation
 
@@ -56,3 +58,10 @@ python server.py
 ## Usage
 
 Connect this MCP server to your MCP-compatible client to start building KQL queries interactively.
+
+### Retrieval-Augmented Workflows
+
+1. Call `retrieve_context` with a natural language question to surface the most relevant Defender schema passages (table descriptions, column metadata, and documentation URLs).
+2. Provide the resulting passages as context to your AI assistant, or rely on `build_query`'s response metadata—when you pass `natural_language_intent`, the tool automatically attaches a `rag_context` field containing the top matches.
+
+The first invocation of the retrieval tool or a natural-language query build will download the embedding model and generate a cached FAISS index in `.cache/`. Subsequent runs reuse the cache for fast lookups.
