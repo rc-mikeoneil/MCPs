@@ -28,10 +28,10 @@ pip install -r requirements.txt
 python server.py
 ```
 
-Or build the Docker image:
+Or build the Docker image (BuildKit recommended for faster builds):
 
 ```bash
-docker build -t cbc-mcp .
+DOCKER_BUILDKIT=1 docker build -t cbc-mcp .
 docker run --rm -it cbc-mcp
 ```
 

@@ -21,8 +21,9 @@ RUN groupadd -g ${APP_GID} ${APP_USER} \
 WORKDIR ${APP_HOME}
 
 COPY requirements.txt ./
-RUN python -m pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt && \
     python - <<'PY'
 import fastmcp, pydantic
 print("Deps OK. FastMCP:", getattr(fastmcp, "__version__", "unknown"))
