@@ -1,6 +1,7 @@
 version: "3.9"
 services:
   kql-mcp:
+    platform: linux/arm64
     build: .
     image: kql-mcp:latest
     container_name: kql-mcp
