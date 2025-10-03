@@ -31,7 +31,7 @@ print("Deps OK. FastMCP:", getattr(fastmcp, "__version__", "unknown"))
 PY
 
 # App source
-COPY server.py schema_scraper.py kql_builder.py README.md ./
+COPY server.py schema_scraper.py kql_builder.py rag.py query_logging.py README.md ./
 COPY defender_xdr_kql_schema_fuller ./defender_xdr_kql_schema_fuller
 
 # Entrypoint
