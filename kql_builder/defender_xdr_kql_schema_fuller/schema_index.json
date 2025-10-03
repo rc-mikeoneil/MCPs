@@ -1,16 +1,16 @@
 {
   "source_index_url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-schema-tables",
-  "generated_at": "2025-09-19T07:45:37.608908Z",
+  "generated_at": "2025-10-03T02:10:40.544420Z",
   "tables": [
     {
       "name": "AADSignInEventsBeta",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "AADSpnSignInEventsBeta",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadspnsignineventsbeta-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "AlertEvidence",
@@ -25,12 +25,12 @@
     {
       "name": "BehaviorEntities",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-behaviorentities-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "BehaviorInfo",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-behaviorinfo-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "CloudAppEvents",
@@ -40,42 +40,42 @@
     {
       "name": "CloudAuditEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudauditevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "CloudProcessEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudprocessevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "CloudStorageAggregatedEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudstorageaggregatedevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DataSecurityBehaviors",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-datasecuritybehaviors-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DataSecurityEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-datasecurityevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceBaselineComplianceAssessment",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicebaselinecomplianceassessment-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceBaselineComplianceAssessmentKB",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicebaselinecomplianceassessmentkb-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceBaselineComplianceProfiles",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicebaselinecomplianceprofiles-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceEvents",
@@ -85,7 +85,7 @@
     {
       "name": "DeviceFileCertificateInfo",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicefilecertificateinfo-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceFileEvents",
@@ -130,67 +130,67 @@
     {
       "name": "DeviceTvmBrowserExtensions",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmbrowserextensions-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmBrowserExtensionsKB",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmbrowserextensionskb-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmCertificateInfo",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmcertificateinfo-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmHardwareFirmware",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmhardwarefirmware-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmInfoGathering",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvminfogathering-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmInfoGatheringKB",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvminfogatheringkb-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmSecureConfigurationAssessment",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmsecureconfigurationassessment-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmSecureConfigurationAssessmentKB",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmsecureconfigurationassessmentkb-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmSoftwareEvidenceBeta",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmsoftwareevidencebeta-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmSoftwareInventory",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmsoftwareinventory-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmSoftwareVulnerabilities",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmsoftwarevulnerabilities-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DeviceTvmSoftwareVulnerabilitiesKB",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicetvmsoftwarevulnerabilitieskb-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "DisruptionAndResponseEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-disruptionandresponseevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "EmailAttachmentInfo",
@@ -205,7 +205,7 @@
     {
       "name": "EmailPostDeliveryEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailpostdeliveryevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "EmailUrlInfo",
@@ -215,27 +215,27 @@
     {
       "name": "ExposureGraphEdges",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-exposuregraphedges-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "ExposureGraphNodes",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-exposuregraphnodes-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "GraphApiAuditEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-graphapiauditevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "IdentityDirectoryEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitydirectoryevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "IdentityEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identityevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "IdentityInfo",
@@ -250,7 +250,7 @@
     {
       "name": "IdentityQueryEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identityqueryevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "MessageEvents",
@@ -260,17 +260,17 @@
     {
       "name": "MessagePostDeliveryEvents",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-messagepostdeliveryevents-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "MessageUrlInfo",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-messageurlinfo-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "OAuthAppInfo",
       "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-oauthappinfo-table",
-      "has_columns_json": false
+      "has_columns_json": true
     },
     {
       "name": "UrlClickEvents",
