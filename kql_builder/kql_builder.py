@@ -7,11 +7,103 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIME_WINDOW = "7d"
 
+# Precompiled regexes reused across validation/parsing helpers.
+_WHERE_DANGEROUS_PATTERNS = (
+    re.compile(r';\s*(?:drop|delete|update|insert|alter|create|truncate)', re.IGNORECASE),
+    re.compile(r';\s*(?:exec|execute)\s+', re.IGNORECASE),
+    re.compile(r'union\s+select', re.IGNORECASE),
+    re.compile(r'--'),
+    re.compile(r'/\*.*?\*/', re.IGNORECASE | re.DOTALL),
+)
+
+_ORDER_BY_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*\s+(?:asc|desc)$')
+_TIME_WINDOW_VALID_PATTERN = re.compile(r'\d+[dhm]')
+_TIME_WINDOW_UNIT_PATTERN = re.compile(r'(\d+)([dhm])')
+_NL_TIME_WINDOW_PATTERNS = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"(?:last|past|previous)\s+(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)",
+        r"(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)\s+(?:ago|back|earlier)",
+        r"since\s+(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)\s+ago",
+        r"within\s+(?:the\s+)?(?:last|past)\s+(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)",
+    )
+)
+
+_TOP_PATTERN = re.compile(r"(?:top|most)\s+(\d+|\w+)\s+(?:by|per|grouped\s+by)\s+(\w+)", re.IGNORECASE)
+_GROUP_BY_PATTERN = re.compile(r"(?:by|per|grouped\s+by)\s+(\w+)", re.IGNORECASE)
+_LIMIT_PATTERNS = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"(?:limit|top|first)\s+(\d+)",
+        r"(\d+)\s+(?:results?|records?|entries?|items?)",
+        r"show\s+(?:me\s+)?(\d+)",
+    )
+)
+
+_SELECT_PATTERNS = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"project\s+(.+?)(?:\s+(?:where|when|with|from)|\s*$)",
+        r"return\s+(.+?)(?:\s+(?:where|when|with|from)|\s*$)",
+        r"show\s+(?:me\s+)?(.+?)(?:\s+(?:where|when|with|from)|\s*$)",
+        r"display\s+(.+?)(?:\s+(?:where|when|with|from)|\s*$)",
+        r"select\s+(.+?)(?:\s+(?:where|when|with|from)|\s*$)",
+    )
+)
+
+_SELECT_SPLIT_PATTERN = re.compile(r'[,&\s]+(?:and\s+)?')
+
+_COLUMN_CACHE: Dict[int, Tuple[Tuple[str, ...], Tuple[str, ...]]] = {}
+
 def _quote(val: str) -> str:
     """Safely quote a string value for KQL."""
     if not isinstance(val, str):
         val = str(val)
     return "'" + val.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+_CONDITION_PATTERNS = (
+    # Action types
+    (re.compile(r"action\s+(?:type\s+)?(?:is|=|equals?)\s+['\"]?([A-Za-z0-9_]+)['\"]?", re.IGNORECASE),
+     lambda m: f"ActionType == {_quote(m.group(1))}"),
+    (re.compile(r"action\s+['\"]?([A-Za-z0-9_]+)['\"]?", re.IGNORECASE),
+     lambda m: f"ActionType == {_quote(m.group(1))}"),
+
+    # Process names
+    (re.compile(r"process\s+(?:name\s+)?(?:is|=|equals?|contains|like)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"ProcessName =~ {_quote(m.group(1))}"),
+    (re.compile(r"(?:running|executing)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"ProcessName =~ {_quote(m.group(1))}"),
+
+    # File names
+    (re.compile(r"file\s+(?:name\s+)?(?:is|=|equals?|contains|like)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"FileName =~ {_quote(m.group(1))}"),
+    (re.compile(r"(?:accessing|opening|creating|deleting)\s+(?:file\s+)?['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"FileName =~ {_quote(m.group(1))}"),
+
+    # Device names
+    (re.compile(r"device\s+(?:name\s+)?(?:is|=|equals?|on)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"DeviceName =~ {_quote(m.group(1))}"),
+    (re.compile(r"(?:on|from)\s+(?:device|machine|computer)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"DeviceName =~ {_quote(m.group(1))}"),
+
+    # IP addresses
+    (re.compile(r"ip\s+(?:address\s+)?(?:is|=|equals?)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", re.IGNORECASE),
+     lambda m: f"RemoteIP == {_quote(m.group(1))}"),
+    (re.compile(r"(?:connecting\s+to|from\s+ip)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", re.IGNORECASE),
+     lambda m: f"RemoteIP == {_quote(m.group(1))}"),
+
+    # User accounts
+    (re.compile(r"(?:user|account)\s+(?:name\s+)?(?:is|=|equals?|by)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"AccountName =~ {_quote(m.group(1))}"),
+    (re.compile(r"(?:logged\s+in\s+as|running\s+as)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"AccountName =~ {_quote(m.group(1))}"),
+
+    # Domains/URLs
+    (re.compile(r"domain\s+(?:is|=|equals?|contains)\s+['\"]?([A-Za-z0-9._-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"RemoteUrl endswith {_quote(m.group(1))} or RemoteUrl contains {_quote(m.group(1))}"),
+    (re.compile(r"(?:visiting|accessing)\s+['\"]?([A-Za-z0-9._-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"RemoteUrl contains {_quote(m.group(1))}"),
+)
 
 def _validate_table_name(table: str, schema: Dict[str, Any]) -> str:
     """Validate and normalize table name."""
@@ -28,6 +120,36 @@ def _validate_table_name(table: str, schema: Dict[str, Any]) -> str:
 
     return table
 
+
+def _get_cached_columns(schema: Dict[str, Any], table: str) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+    """Return canonical and lowercased column names for a table using an LRU-like cache."""
+    table_info = schema.get(table)
+    if not isinstance(table_info, dict):
+        return tuple(), tuple()
+
+    columns_data = table_info.get("columns", [])
+    if not isinstance(columns_data, list):
+        return tuple(), tuple()
+
+    cache_key = id(columns_data)
+    cached = _COLUMN_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    names: List[str] = []
+    for column in columns_data:
+        if isinstance(column, dict):
+            name = column.get("name")
+            if isinstance(name, str):
+                stripped = name.strip()
+                if stripped:
+                    names.append(stripped)
+
+    canonical = tuple(names)
+    lowered = tuple(name.lower() for name in canonical)
+    _COLUMN_CACHE[cache_key] = (canonical, lowered)
+    return _COLUMN_CACHE[cache_key]
+
 def _validate_column_names(columns: List[str], schema: Dict[str, Any], table: str) -> List[str]:
     """Validate column names against schema."""
     if not columns:
@@ -36,7 +158,8 @@ def _validate_column_names(columns: List[str], schema: Dict[str, Any], table: st
     if not isinstance(columns, list):
         raise ValueError("Columns must be a list")
 
-    available_columns = {col["name"] for col in schema.get(table, {}).get("columns", [])}
+    column_names, _ = _get_cached_columns(schema, table)
+    available_columns = set(column_names)
 
     validated_columns = []
     for col in columns:
@@ -77,16 +200,8 @@ def _validate_where_conditions(conditions: List[str]) -> List[str]:
             continue
 
         # Basic safety checks - prevent SQL injection-like patterns
-        dangerous_patterns = [
-            r';\s*(?:drop|delete|update|insert|alter|create|truncate)',
-            r';\s*(?:exec|execute)\s+',
-            r'union\s+select',
-            r'--',  # SQL comments
-            r'/\*.*\*/',  # Block comments
-        ]
-
-        for pattern in dangerous_patterns:
-            if re.search(pattern, condition, re.IGNORECASE):
+        for pattern in _WHERE_DANGEROUS_PATTERNS:
+            if pattern.search(condition):
                 raise ValueError(f"WHERE condition contains potentially dangerous pattern: {condition}")
 
         # Check for balanced quotes
@@ -108,12 +223,12 @@ def _validate_time_window(time_window: str) -> str:
         return DEFAULT_TIME_WINDOW
 
     # Check format: number followed by d/h/m
-    if not re.fullmatch(r'\d+[dhm]', time_window):
+    if not _TIME_WINDOW_VALID_PATTERN.fullmatch(time_window):
         logger.warning(f"Invalid time window format '{time_window}', using default")
         return DEFAULT_TIME_WINDOW
 
     # Reasonable bounds check
-    match = re.match(r'(\d+)([dhm])', time_window)
+    match = _TIME_WINDOW_UNIT_PATTERN.match(time_window)
     if match:
         num = int(match.group(1))
         unit = match.group(2)
@@ -160,16 +275,8 @@ def _validate_summarize_expression(summarize: Optional[str]) -> Optional[str]:
         return None
 
     # Basic safety checks
-    dangerous_patterns = [
-        r';\s*(?:drop|delete|update|insert|alter|create|truncate)',
-        r';\s*(?:exec|execute)\s+',
-        r'union\s+select',
-        r'--',  # SQL comments
-        r'/\*.*\*/',  # Block comments
-    ]
-
-    for pattern in dangerous_patterns:
-        if re.search(pattern, summarize, re.IGNORECASE):
+    for pattern in _WHERE_DANGEROUS_PATTERNS:
+        if pattern.search(summarize):
             raise ValueError(f"Summarize expression contains potentially dangerous pattern: {summarize}")
 
     return summarize
@@ -184,7 +291,7 @@ def _validate_order_by_expression(order_by: Optional[str]) -> Optional[str]:
         return None
 
     # Check for valid order by patterns
-    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*\s+(?:asc|desc)$', order_by):
+    if not _ORDER_BY_PATTERN.match(order_by):
         logger.warning(f"Order by expression may be invalid: {order_by}")
 
     return order_by
@@ -199,7 +306,7 @@ def _parse_time_window(s: Optional[str]) -> str:
         return DEFAULT_TIME_WINDOW
 
     # Check format: number followed by d/h/m
-    if not re.fullmatch(r'\d+[dhm]', s):
+    if not _TIME_WINDOW_VALID_PATTERN.fullmatch(s):
         logger.warning(f"Invalid time window format '{s}', using default")
         return DEFAULT_TIME_WINDOW
 
@@ -221,8 +328,8 @@ def list_columns(schema: Dict[str, Any], table: str) -> List[str]:
         return []
 
     try:
-        columns = schema[table].get("columns", [])
-        return [c["name"] for c in columns if isinstance(c, dict) and "name" in c]
+        column_names, _ = _get_cached_columns(schema, table)
+        return list(column_names)
     except (KeyError, TypeError) as e:
         logger.error(f"Error accessing columns for table '{table}': {e}")
         return []
@@ -241,21 +348,23 @@ def suggest_columns(schema: Dict[str, Any], table: str, keyword: Optional[str]=N
         logger.error("Keyword must be a string or None")
         return []
 
-    cols = list_columns(schema, table)
+    cols, lower_cols = _get_cached_columns(schema, table)
+    if not cols:
+        return []
 
     if not keyword or not keyword.strip():
-        return cols[:50]
+        return list(cols[:50])
 
     kw = keyword.lower().strip()
     if not kw:
-        return cols[:50]
+        return list(cols[:50])
 
     try:
-        filtered_cols = [c for c in cols if kw in c.lower()]
+        filtered_cols = [name for name, lowered in zip(cols, lower_cols) if kw in lowered]
         return filtered_cols[:50]
     except Exception as e:
         logger.error(f"Error filtering columns with keyword '{keyword}': {e}")
-        return cols[:50]
+        return list(cols[:50])
 
 def _best_table(schema: Dict[str, Any], name: str) -> str:
     """Find the best matching table name with improved error handling."""
@@ -390,16 +499,9 @@ def _parse_time_window_from_text(text: str) -> str:
         return DEFAULT_TIME_WINDOW
 
     # Multiple time pattern formats
-    time_patterns = [
-        r"(?:last|past|previous)\s+(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)",
-        r"(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)\s+(?:ago|back|earlier)",
-        r"since\s+(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)\s+ago",
-        r"within\s+(?:the\s+)?(?:last|past)\s+(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)"
-    ]
-
-    for pattern in time_patterns:
+    for pattern in _NL_TIME_WINDOW_PATTERNS:
         try:
-            match = re.search(pattern, text, re.IGNORECASE)
+            match = pattern.search(text)
             if match and len(match.groups()) >= 2:
                 n = match.group(1)
                 unit = match.group(2)
@@ -424,39 +526,8 @@ def _parse_conditions_from_text(text: str) -> Optional[List[str]]:
     """Parse WHERE conditions from natural language text."""
     conditions = []
 
-    # Enhanced condition patterns
-    condition_patterns = [
-        # Action types
-        (r"action\s+(?:type\s+)?(?:is|=|equals?)\s+['\"]?([A-Za-z0-9_]+)['\"]?", lambda m: f"ActionType == {_quote(m.group(1))}"),
-        (r"action\s+['\"]?([A-Za-z0-9_]+)['\"]?", lambda m: f"ActionType == {_quote(m.group(1))}"),
-
-        # Process names
-        (r"process\s+(?:name\s+)?(?:is|=|equals?|contains|like)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"ProcessName =~ {_quote(m.group(1))}"),
-        (r"(?:running|executing)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"ProcessName =~ {_quote(m.group(1))}"),
-
-        # File names
-        (r"file\s+(?:name\s+)?(?:is|=|equals?|contains|like)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"FileName =~ {_quote(m.group(1))}"),
-        (r"(?:accessing|opening|creating|deleting)\s+(?:file\s+)?['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"FileName =~ {_quote(m.group(1))}"),
-
-        # Device names
-        (r"device\s+(?:name\s+)?(?:is|=|equals?|on)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"DeviceName =~ {_quote(m.group(1))}"),
-        (r"(?:on|from)\s+(?:device|machine|computer)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"DeviceName =~ {_quote(m.group(1))}"),
-
-        # IP addresses
-        (r"ip\s+(?:address\s+)?(?:is|=|equals?)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", lambda m: f"RemoteIP == {_quote(m.group(1))}"),
-        (r"(?:connecting\s+to|from\s+ip)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", lambda m: f"RemoteIP == {_quote(m.group(1))}"),
-
-        # User accounts
-        (r"(?:user|account)\s+(?:name\s+)?(?:is|=|equals?|by)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"AccountName =~ {_quote(m.group(1))}"),
-        (r"(?:logged\s+in\s+as|running\s+as)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", lambda m: f"AccountName =~ {_quote(m.group(1))}"),
-
-        # Domains/URLs
-        (r"domain\s+(?:is|=|equals?|contains)\s+['\"]?([A-Za-z0-9._-]+)['\"]?", lambda m: f"RemoteUrl endswith {_quote(m.group(1))} or RemoteUrl contains {_quote(m.group(1))}"),
-        (r"(?:visiting|accessing)\s+['\"]?([A-Za-z0-9._-]+)['\"]?", lambda m: f"RemoteUrl contains {_quote(m.group(1))}"),
-    ]
-
-    for pattern, condition_func in condition_patterns:
-        for match in re.finditer(pattern, text, re.IGNORECASE):
+    for pattern, condition_func in _CONDITION_PATTERNS:
+        for match in pattern.finditer(text):
             try:
                 condition = condition_func(match)
                 if condition and condition not in conditions:
@@ -476,7 +547,7 @@ def _parse_aggregation_from_text(text: str) -> Dict[str, Any]:
 
     # Top/bottom patterns
     try:
-        top_match = re.search(r"(?:top|most)\s+(\d+|\w+)\s+(?:by|per|grouped\s+by)\s+(\w+)", text, re.IGNORECASE)
+        top_match = _TOP_PATTERN.search(text)
         if top_match and len(top_match.groups()) >= 2:
             count = top_match.group(1)
             group_by = top_match.group(2)
@@ -499,7 +570,7 @@ def _parse_aggregation_from_text(text: str) -> Dict[str, Any]:
     if "count" in text or "number of" in text or "how many" in text:
         if "by" in text:
             try:
-                by_match = re.search(r"(?:by|per|grouped\s+by)\s+(\w+)", text, re.IGNORECASE)
+                by_match = _GROUP_BY_PATTERN.search(text)
                 if by_match and len(by_match.groups()) >= 1:
                     group_by = by_match.group(1)
                     if group_by:
@@ -512,14 +583,8 @@ def _parse_aggregation_from_text(text: str) -> Dict[str, Any]:
 
 def _parse_limit_from_text(text: str) -> Optional[int]:
     """Parse limit from text."""
-    limit_patterns = [
-        r"(?:limit|top|first)\s+(\d+)",
-        r"(\d+)\s+(?:results?|records?|entries?|items?)",
-        r"show\s+(?:me\s+)?(\d+)"
-    ]
-
-    for pattern in limit_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+    for pattern in _LIMIT_PATTERNS:
+        match = pattern.search(text)
         if match:
             try:
                 limit = int(match.group(1))
@@ -535,19 +600,12 @@ def _parse_select_from_text(text: str) -> Optional[List[str]]:
     if "show" not in text and "display" not in text and "select" not in text:
         return None
 
-    # Look for column names in the text
-    select_patterns = [
-        r"show\s+(?:me\s+)?(.+?)(?:\s+(?:where|when|with|from)|\s*$)",
-        r"display\s+(.+?)(?:\s+(?:where|when|with|from)|\s*$)",
-        r"select\s+(.+?)(?:\s+(?:where|when|with|from)|\s*$)"
-    ]
-
-    for pattern in select_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+    for pattern in _SELECT_PATTERNS:
+        match = pattern.search(text)
         if match:
             columns_text = match.group(1).strip()
             # Split by common separators
-            columns = re.split(r'[,&\s]+(?:and\s+)?', columns_text)
+            columns = _SELECT_SPLIT_PATTERN.split(columns_text)
             # Clean up column names
             clean_columns = []
             for col in columns:

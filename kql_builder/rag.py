@@ -59,6 +59,7 @@ class RAGService:
         self._metadata_path = self.cache_dir / "rag_metadata.json"
         self._index_path = self.cache_dir / "rag_index.faiss"
         self._mode: str = "uninitialized"
+        self._schema_version: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -170,10 +171,23 @@ class RAGService:
         """Ensure the embedding index exists for the Defender schema."""
 
         schema = self.schema_cache.load_or_refresh()
+        schema_version = getattr(self.schema_cache, "version", None)
+
+        if (
+            not force
+            and self._mode != "uninitialized"
+            and schema_version is not None
+            and schema_version == self._schema_version
+        ):
+            return
+
         documents = self._build_documents(schema)
         signature = self._documents_signature(documents)
 
         if not force and self._load_cached_index(signature):
+            # Ensure in-memory documents align with the latest schema snapshot.
+            self._documents = documents
+            self._schema_version = schema_version
             return
 
         if SentenceTransformer is None or faiss is None or np is None:
@@ -188,6 +202,7 @@ class RAGService:
             self._dimension = None
             self._index = None
             self._mode = "fuzzy"
+            self._schema_version = schema_version
             with self._metadata_path.open("w", encoding="utf-8") as handle:
                 json.dump(
                     {
@@ -237,6 +252,7 @@ class RAGService:
         self._index = index
         self._documents = documents
         self._dimension = dimension
+        self._schema_version = schema_version
         logger.info("Persisted new embeddings cache to %s", self.cache_dir)
 
     def search(self, query: str, k: int = 5) -> List[Dict[str, object]]:
@@ -309,4 +325,5 @@ class RAGService:
         self._documents = []
         self._dimension = None
         self._mode = "uninitialized"
+        self._schema_version = None
         logger.info("Cleared RAG embeddings cache.")
