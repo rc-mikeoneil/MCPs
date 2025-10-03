@@ -12,7 +12,9 @@ Lucene-inspired query syntax and metadata.
   retrieve best practices or example queries.
 - **Natural-language assistance** – Provide a high-level intent and the
   `build_query` tool will extract hashes, process names, IPs, and other
-  indicators to assemble a Carbon Black query with sensible defaults.
+  indicators to assemble a Carbon Black query with sensible defaults. When
+  natural language is used the server also pulls relevant schema passages via
+  retrieval augmented generation (RAG) to aid downstream reasoning.
 - **Container-first workflow** – A lightweight Dockerfile and optional
   `docker-compose.yml` make it easy to run the MCP server in an isolated
   environment.
@@ -43,8 +45,11 @@ docker run --rm -it cbc-mcp
   from the schema metadata.
 - `get_best_practices` – Return the published query-building best practices.
 - `get_example_queries` – Fetch representative example queries by category.
+- `retrieve_context` – Fetch schema passages that match a natural-language
+  question using the embedded documentation index.
 - `build_query` – Build a Carbon Black Cloud EDR query from structured
-  parameters or from a natural-language description.
+  parameters or from a natural-language description. RAG context is attached to
+  the metadata when intent text is provided.
 
 The `build_query` tool returns both the composed query string and metadata about
 the recognised indicators and applied defaults, making it easier to present the

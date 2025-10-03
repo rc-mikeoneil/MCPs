@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from schema_loader import CBCSchemaCache, normalise_search_type
 from query_builder import build_cbc_query, QueryBuildError, DEFAULT_BOOLEAN_OPERATOR, MAX_LIMIT
+from rag import RAGService
 
 
 logging.basicConfig(
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_FILE = Path(__file__).with_name("cb_edr_schema.json")
 cache = CBCSchemaCache(SCHEMA_FILE)
+DATA_DIR = Path(".cache")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+rag_service = RAGService(schema_cache=cache, cache_dir=DATA_DIR)
 mcp = FastMCP(name="cbc-query-builder")
 
 
@@ -48,6 +52,11 @@ class BuildQueryParams(BaseModel):
         le=MAX_LIMIT,
         description="Optional record limit hint for downstream consumers",
     )
+
+
+class RetrieveContextParams(BaseModel):
+    query: str
+    k: int = Field(default=5, ge=1, le=20)
 
 
 @mcp.tool
@@ -105,6 +114,19 @@ def get_example_queries(params: ExampleQueryParams) -> Dict[str, Any]:
 
 
 @mcp.tool
+def retrieve_context(params: RetrieveContextParams) -> Dict[str, Any]:
+    """Return relevant schema passages for a natural language query."""
+
+    try:
+        results = rag_service.search(params.query, k=params.k)
+        logger.info("RAG returned %d matches for query", len(results))
+        return {"matches": results}
+    except Exception as exc:
+        logger.warning("Failed to retrieve RAG context: %s", exc)
+        return {"error": str(exc)}
+
+
+@mcp.tool
 def build_query(params: BuildQueryParams) -> Dict[str, Any]:
     """Build a Carbon Black Cloud query from structured parameters or natural language."""
 
@@ -113,6 +135,17 @@ def build_query(params: BuildQueryParams) -> Dict[str, Any]:
     try:
         query, metadata = build_cbc_query(schema, **payload)
         logger.info("Built CBC query for search_type=%s", metadata.get("search_type"))
+
+        intent = payload.get("natural_language_intent")
+        if intent:
+            try:
+                context = rag_service.search(intent, k=5)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Unable to attach RAG context: %s", exc)
+            else:
+                if context:
+                    metadata = {**metadata, "rag_context": context}
+
         return {"query": query, "metadata": metadata}
     except QueryBuildError as exc:
         logger.warning("Failed to build query: %s", exc)
