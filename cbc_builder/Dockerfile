@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1.7
+FROM python:3.12-slim
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    APP_USER=app \
+    APP_UID=10001 \
+    APP_GID=10001 \
+    APP_HOME=/app \
+    CACHE_DIR=/app/.cache
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl git socat \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -g ${APP_GID} ${APP_USER} \
+ && useradd -m -u ${APP_UID} -g ${APP_GID} -s /usr/sbin/nologin ${APP_USER} \
+ && mkdir -p ${APP_HOME} ${CACHE_DIR}
+
+WORKDIR ${APP_HOME}
+
+COPY requirements.txt ./
+RUN python -m pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    python - <<'PY'
+import fastmcp, pydantic
+print("Deps OK. FastMCP:", getattr(fastmcp, "__version__", "unknown"))
+PY
+
+COPY server.py schema_loader.py query_builder.py README.md cb_edr_schema.json ./
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    chown -R ${APP_UID}:${APP_GID} ${APP_HOME}
+
+USER ${APP_UID}:${APP_GID}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD test -w ${CACHE_DIR} || exit 1
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["python", "server.py"]
