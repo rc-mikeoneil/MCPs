@@ -68,17 +68,19 @@ _CONDITION_PATTERNS = (
     (re.compile(r"action\s+['\"]?([A-Za-z0-9_]+)['\"]?", re.IGNORECASE),
      lambda m: f"ActionType == {_quote(m.group(1))}"),
 
-    # Process names
+    # Process/File names (FileName is used for process executables in DeviceProcessEvents)
     (re.compile(r"process\s+(?:name\s+)?(?:is|=|equals?|contains|like)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
-     lambda m: f"ProcessName =~ {_quote(m.group(1))}"),
+     lambda m: f"FileName =~ {_quote(m.group(1))}"),
     (re.compile(r"(?:running|executing)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
-     lambda m: f"ProcessName =~ {_quote(m.group(1))}"),
-
-    # File names
+     lambda m: f"FileName =~ {_quote(m.group(1))}"),
     (re.compile(r"file\s+(?:name\s+)?(?:is|=|equals?|contains|like)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
      lambda m: f"FileName =~ {_quote(m.group(1))}"),
     (re.compile(r"(?:accessing|opening|creating|deleting)\s+(?:file\s+)?['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
      lambda m: f"FileName =~ {_quote(m.group(1))}"),
+
+    # Initiating process names
+    (re.compile(r"initiating\s+process\s+(?:is|=|equals?|contains|like)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"InitiatingProcessFileName =~ {_quote(m.group(1))}"),
 
     # Device names
     (re.compile(r"device\s+(?:name\s+)?(?:is|=|equals?|on)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
@@ -87,21 +89,43 @@ _CONDITION_PATTERNS = (
      lambda m: f"DeviceName =~ {_quote(m.group(1))}"),
 
     # IP addresses
+    (re.compile(r"remote\s+ip\s+(?:is|=|equals?)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", re.IGNORECASE),
+     lambda m: f"RemoteIP == {_quote(m.group(1))}"),
+    (re.compile(r"(?:sender|source)\s+ip\s+(?:is|=|equals?)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", re.IGNORECASE),
+     lambda m: f"SenderIPv4 == {_quote(m.group(1))} or SenderIPv6 == {_quote(m.group(1))}"),
+    (re.compile(r"local\s+ip\s+(?:is|=|equals?)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", re.IGNORECASE),
+     lambda m: f"LocalIP == {_quote(m.group(1))}"),
     (re.compile(r"ip\s+(?:address\s+)?(?:is|=|equals?)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", re.IGNORECASE),
      lambda m: f"RemoteIP == {_quote(m.group(1))}"),
     (re.compile(r"(?:connecting\s+to|from\s+ip)\s+['\"]?([0-9a-fA-F\.:]+)['\"]?", re.IGNORECASE),
      lambda m: f"RemoteIP == {_quote(m.group(1))}"),
 
     # User accounts
-    (re.compile(r"(?:user|account)\s+(?:name\s+)?(?:is|=|equals?|by)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
+    (re.compile(r"(?:user|account)\s+(?:name\s+)?(?:is|=|equals?|by)\s+['\"]?([A-Za-z0-9._\\@-]+)['\"]?", re.IGNORECASE),
      lambda m: f"AccountName =~ {_quote(m.group(1))}"),
-    (re.compile(r"(?:logged\s+in\s+as|running\s+as)\s+['\"]?([A-Za-z0-9._\\-]+)['\"]?", re.IGNORECASE),
-     lambda m: f"AccountName =~ {_quote(m.group(1))}"),
+    (re.compile(r"(?:logged\s+in\s+as|running\s+as)\s+['\"]?([A-Za-z0-9._\\@-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"AccountName =~ {_quote(m.group(1))} or InitiatingProcessAccountName =~ {_quote(m.group(1))}"),
+
+    # Email sender patterns
+    (re.compile(r"(?:from|sender)\s+(?:is|=|equals?|address)\s+['\"]?([A-Za-z0-9@._+-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"SenderFromAddress =~ {_quote(m.group(1))}"),
+    (re.compile(r"sender\s+domain\s+(?:is|=|equals?|contains)\s+['\"]?([A-Za-z0-9._-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"SenderFromDomain =~ {_quote(m.group(1))}"),
+
+    # Email recipient patterns
+    (re.compile(r"(?:recipient|to)\s+(?:is|=|equals?|address)\s+['\"]?([A-Za-z0-9@._+-]+)['\"]?", re.IGNORECASE),
+     lambda m: f"RecipientEmailAddress =~ {_quote(m.group(1))}"),
+
+    # Email subject patterns
+    (re.compile(r"subject\s+(?:is|=|equals?)\s+['\"](.+?)['\"]", re.IGNORECASE),
+     lambda m: f"Subject == {_quote(m.group(1))}"),
+    (re.compile(r"subject\s+contains\s+['\"]?(.+?)['\"]?(?:\s+(?:where|when|with|from|and|or)|\s*$)", re.IGNORECASE),
+     lambda m: f"Subject contains {_quote(m.group(1).strip())}"),
 
     # Domains/URLs
     (re.compile(r"domain\s+(?:is|=|equals?|contains)\s+['\"]?([A-Za-z0-9._-]+)['\"]?", re.IGNORECASE),
      lambda m: f"RemoteUrl endswith {_quote(m.group(1))} or RemoteUrl contains {_quote(m.group(1))}"),
-    (re.compile(r"(?:visiting|accessing)\s+['\"]?([A-Za-z0-9._-]+)['\"]?", re.IGNORECASE),
+    (re.compile(r"(?:visiting|accessing)\s+(?:url\s+)?['\"]?([A-Za-z0-9._-]+)['\"]?", re.IGNORECASE),
      lambda m: f"RemoteUrl contains {_quote(m.group(1))}"),
 )
 
